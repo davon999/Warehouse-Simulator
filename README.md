@@ -1,79 +1,121 @@
-# Tema 2 – Depozit portuar
+# Port Warehouse Simulator
 
-# Descriere
+A day-by-day simulation of a port warehouse, written in C++. The program decides which cargo to order, where to place it and when to ship it, with one goal: **end the simulation with as much money as possible**.
 
-Hala unui port are L x L pozitii de palet așezate pe rânduri și coloane, iar fiecare marfă vine pe un palet.
-Se porneste cu o suma de bani si trebuie luate decizii in functie de de ce marfa este in depozit si de specificatiile fiecarei marfa in parte,
-Pe fiecare palet se pot face doua operatii :
-`incarca` - rezerva pozitia de pe palet si marfa este platita
- Marfa ajunge in depozit dupa ceva timp (depinde de fiecare marfa in parte) si mai dureaza o zi pana sa poate fi expediata 
-`expediaza` - elibereaza marfa de pe palet si incaseaza banii
+```
+FINAL_BALANCE = starting money + revenue − costs
+```
 
-Obiectiv: maximizarea `SUMA_FINALA = bani_inițiali + venituri − cheltuieli`
+## The problem
 
-# Cum rulezi
+The warehouse is an **L × L grid of pallet slots**. Each cargo type has a name, a delivery time, a cost and a selling price. Every day, each slot can be used for two operations:
 
-Am folosit make care produce ./app , pt rulare : ./app tests/public/01.in out.txt, apoi validarea cu `python3 judge_public.py tests/public/01.in out.txt1`
-Fiecare progres/milestone din punctul meu de vedere l am pushuit pe `git` am folosit `git add .` `git commit -m "mesajul meu"` `git push`
+- **load**: reserve the slot and pay for the cargo. The cargo arrives after its delivery time and can be shipped from then on.
+- **ship**: free the slot and collect the selling price.
 
-# Cum am organizat programul - Structura codului :
+What makes it interesting are the constraints:
 
-Am creat clasa `Dispecer` pentru a putea realiza operatii cu fiecare marfa din depozit si organiza toate datele
+- You can only load cargo you can afford with the money you have right now.
+- Cargo must be shipped before the simulation ends; anything still on a pallet on the last day is lost money.
+- After shipping from a slot, it needs **1 day** before it can be reused, or **3 days** if you load the same cargo type again.
+- **Rotation rules** decide which cargo can follow which on the same slot. Some cargo types can follow anything (marked `N/A`), and an unused slot only accepts those.
 
-`Dispecer.h` - headerul unde am declarat functiile clasei si campurile acesteia
-`Dispecer.cpp` - locul in care am implementat functiile
-`depozit.h` - headerul unde sunt declarate structurile Depozit si Marfa fiecare cu campurile sale si functiile de citire si simulare
-`depozit.cpp` - aici se face citirea din fisier si se simuleaza zilele
-`main.cpp1` - contine dor main si apeleaza functiile programului
-`Makefile` - compileaza cu `g++ -std=c++17 -O2 -Wall -o app *.cpp`
+## Build and run
 
-# Aici explic fiecare functie folosita in parte 
+```bash
+make
+./app tests/public/01.in out.txt
+python3 judge_public.py tests/public/01.in out.txt
+```
 
-`int citeste(const char* caleIn, Depozit& d)` - citesc din fisier prima linie mai intai si salvez datele in d care este de tipul Depozit,
-apoi citesc n linii reprezentand nr de marfuri si fiecare informatie despre aceasta in parte. Apoi am citit intr un buffer cuvantul `ROTATIE` , deoarece nu
-trebuie salvat nicaieri deoarece e inutil urmat de variabila r notata de mine unde am nr de rotatii 
-Apoi cele r rotatii unde pt fiecare rotatie am citit numele de marfa in doua charuri `str1` si `str2` pe care le am converit ulterior in pozitia lor din 
-vectorul de marfuri cu functia `numeToIndex` creata de mine care returneaaza : pozitia sa din vector , -1 in cazul in care nu exista in vector sau -2 in cazul in care charul este cuvantul `N/A` si este un caz special
-Apoi in functie de valorile returnate completez campurile `isNa` si `dupaMarfa`
+The Makefile compiles with `g++ -std=c++17 -O2 -Wall`. The last command validates the output and checks that every action respects the rules.
 
-# O sa continui cu functiile din Dispecer , deoarece in simuleaza m am folosit de ele in mare parte si asa are sens logic sa explic:
+### Input format
 
-`Dispecer(Depozit &d, std::ofstream &g);` - constructorul clasei
+```
+L DAYS MONEY N
+<name> <delivery_time> <cost> <price>      (N lines, one per cargo type)
+ROTATIE R
+<cargoA> <cargoB>                          (R lines: A can be loaded after B)
+```
 
-`bool verifIncarcare(int p,int m,int zi);` - returneaza `true` in cazul in care marfa respecta conditiile de incarcare 
-returneaza `false` in oricare din cazurile in care : pozitia de pe palet este ocupata , am mai putini bani decat costa marfa, nu ma incadrez in timp cu durata ,
-daca pozitia paletului n a mai fost ocupata pana acum am doua cazuri : marfa are campul `N/A` o adaug direct sau nu are deci nu poate fi incarcata pe aceasta poz,
-daca nu a trecut cooldownul de cand a fost ultima expediere : 1 zi pt marfa diferita sau 3 pt aceeasi marfa, daca nici de tip `N/A` nu e si nici nu poate fi pusa
-dupa marfa anterioara
+A rule like `<cargoA> N/A` means cargo A can follow anything.
 
-`void incarca(int p,int m,int zi);` - functia simuleaza incarcarea - imi scade suma de bani cu costul marfii, marchez pozitia ca ocupata si salvez datele adica ziua,indexul marfii adica pozitia din vectorul de marfuri si setez campul folosit la `true`
-p este pozitia paletelor iar cu /10 aflu linia si cu %10 coloana asa ca am afisat mesajul corespunzator incarcarii
+### Output format
 
-`bool verifExpediere(int p,int m,int zi);` - daca poz nu e ocupata nu am ce expedia -> `false`
-daca a trecut deja timpul de asteptare din momentul in care am incarcat o -> `true` e gata de expediat
+One line per action, then the final balance:
 
-`void expediaza(int p,int m,int zi);` - functia simuleaza expediere - imi creste suma cu pretul marfii pe care o expediez eliberez pozitia p din `ocupat[p]` salvez ziua si indexul marfii respective si afisez mesajul aferent expedierii
+```
+<day> incarca <row>x<col> <cargo>
+<day> expediaza <row>x<col>
+SUMA_FINALA: <money>
+```
 
-Astea sunt functiile folosite in prima implementare si programul rula scoateam aprox 3 mil suma fara nicio filtrare sau rationament pur si simplu luam fiecare marfa
- o verificam cu verifIncarcare si verifExpediere . Apoi m am gandit sa aleg de fiecare data varianta cea mai buna pe moment adica sa selectez marfa care era cea mai valoroasa din punct de vedere profit/timp asa ca am adaugat in depozit.h campul int best[MAX_MARFA]; unde salvam cele mai bune marfuri sortate descrescator dupa ratio cu ajutorul functiei : 
+## Project structure
 
-`void bestMarfa();` - initial le am pus direct marfurile apoi am inceput sa le parcurg si sa le interschimb in functie de ratio cu ajutorul functiei create de mine
-`double returnRatio(int idx);` - returneaza profitul fiecarei marfi raportata la (timp+1) deoarece am luat in considerare si cazul de o zi cooldown (cand expediez de pe poz p in ziua z pot incarca ceva de abia in ziua z+1)
+| File | Contents |
+|---|---|
+| `depozit.h` / `depozit.cpp` | `Marfa` (cargo) and `Depozit` (warehouse state) structs, input parsing and the day-by-day simulation loop |
+| `Dispecer.h` / `Dispecer.cpp` | `Dispecer` (dispatcher) class: rule checks, the load and ship operations, and the decision logic |
+| `main.cpp` | entry point |
+| `Makefile` | build |
 
- Cu rationamentul acesta de profit/timp am reusit sa scot 9 mil suma , dar tot nu luam cele mai bune cazuri in vizor ci doar alegeam marfa cea mai buna pt momentul respectiv nu si pt viitor. Dau aici un simplu caz :
- am marfa A - ratio 10.33 , marfa B - ratio 8.6 , marfa C - 7.5 dar dupa marfa A nu mai poate fi pus nimic deoarece poate depozitul avea campurile d.isNa[poz lui A]=false si d.dupaMarfa[poz lui C][poz lui B] , iar cu functia mea best() alegeam A cand defapt faceam profit mai mare pe termen mai lng alegand C. Asadar am abordat un rationament de a verifica cu "un pas inainte" si salvand ratio-ul unei perechi cele mai optime in loc de doar ratio-ul unei singure marfi
+The warehouse state is stored flat: each slot has an index `p = row * L + col`, with arrays tracking whether it is occupied, which cargo it holds, when it was loaded and what was last shipped from it.
 
-`int alegereMarfa(int p,int zi);` - parcurg cu un for fiecare marfa in parte , initial daca nu este apta de incarcare (verific cu `verifIncarcare`) sar peste iteratia respectiva,in caz contrar este buna si salvez in ratio initial ratio-ul marfii deoarece momentan asta este ratio-ul perechii (n-am inca o a doua marfa). Apoi continui sa ma uit printre marfuri cu un alt for si verific marfurile ce pot fi puse dupa marfa selectata initial. Setez `cooldown-ul` = 1 in caz de sunt diferite sau = 3 in cazul in care vorbim despre marfa cu nume identic. Iarasi daca nu ma incadrez in timp omit cazul ca sa nu raman cu marfa blocata pe palet , iar daca totul este in regula calculez suma perechii de marfuri cu functia ajutatoare creata de mine
+## How it works
 
-`double sumaPereche(int m1, int m2)` - calculeaza ratio-ul astfel : (profit de pe marfa1 + profit de pe marfa 2) / (timp marfa 1 + timp marfa 2 + cooldown + 1)
-cooldown-ul fiind timpul dintre acestea de asteptare si `+1` pt timpul de dupa marfa2
+### Reading the configuration
 
-Si retin perechea maxima si indexul marfii din perechea cu maxPairScore si returnez pozitia - `i`
+`citeste()` reads the grid size, number of days, starting money and the cargo list, then the rotation rules. Cargo names are mapped to indices with a small helper, `numetoindex()`, which returns:
 
-`int simuleaza(const char* caleOut, Depozit& d);` - creez o clasa `disp`, parcurg zilele , apoi parcurg pt fiecare zi in parte fiecare pozitie de palet si verific daca este ceva deja gata de expediere acolo cu functia `verifExpediere` , iar daca este expediez si imi colectez banii. Apoi parcurg pozitiile paletilor selectez marfa cu functia de mai devreme `bestMarfa` care aduce cea mai buna marfa si o incarc pe pozitie
+- the cargo's index if the name is known,
+- `-1` for an unknown name (the rule is skipped),
+- `-2` for `N/A`, so it can't be mistaken for an unknown name.
 
-In final afisez suma de bani obtinuta
+The rules end up in two lookup tables: `isNA[a]` (cargo `a` can follow anything) and `dupaMarfa[a][b]` (cargo `a` can follow cargo `b`). This makes each rule check O(1) during the simulation.
 
+### The simulation loop
 
+`simuleaza()` runs one day at a time, in two passes over all slots:
 
- # OOP-Warehouse
+1. **Ship** everything that is ready, to collect money first.
+2. **Load** each free slot with the best cargo the dispatcher can find, using the money just collected.
+
+### The dispatcher
+
+`Dispecer` holds all the decision logic:
+
+- `verifIncarcare()` checks whether a cargo can be loaded on a slot today: the slot is free, there is enough money, the cargo can be shipped before the end, the cooldown has passed and the rotation rule allows it.
+- `verifExpediere()` checks whether a slot holds cargo that is ready to ship.
+- `incarca()` and `expediaza()` apply the operations: they update the money and the slot state and write the action to the output.
+- `alegereMarfa()` picks which cargo to load. This is where the optimisation lives.
+
+## Optimisation: from 3M to 9M and beyond
+
+### Version 1: first valid cargo (~3M)
+
+The first version loaded the first cargo that passed all the checks. It was correct, but it made no attempt to choose well.
+
+### Version 2: best profit per day (~9M)
+
+Next, every cargo got a score: the profit it brings per day it occupies a slot.
+
+```
+score(c) = (price − cost) / (delivery_time + 1)
+```
+
+The `+1` accounts for the 1-day cooldown before the slot can be reused. Picking the highest-scoring valid cargo tripled the result to about 9M.
+
+### Version 3: one-step lookahead
+
+The greedy approach has a blind spot: it only looks at the current move. Suppose cargo **A** has the best score (10.33) but the rotation rules allow nothing after it, while cargo **C** scores lower (7.5) but can be followed by **B** (8.6). Greedy picks A and the slot sits idle afterwards; picking C and then B earns more over time.
+
+So the dispatcher now scores **pairs** of consecutive loads on the same slot:
+
+```
+pairScore(a, b) = (profit(a) + profit(b)) / (time(a) + time(b) + cooldown + 1)
+```
+
+where `cooldown` is 1 day, or 3 days if `a` and `b` are the same cargo. For every cargo `a` that can be loaded now, `alegereMarfa()` tries every `b` the rules allow after it, skips pairs that would not finish before the last day, and keeps the best score. The cargo with the best pair score is loaded. A cargo with no valid follower still competes with its single score, so nothing is ruled out.
+
+The cost is O(N²) per slot per day, where N is the number of cargo types (at most 20). That is negligible, even on a 99 × 99 grid.
