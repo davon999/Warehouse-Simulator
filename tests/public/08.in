@@ -1,0 +1,11 @@
+3 18 1000 4
+sticla 4 80 340
+cupru 3 70 300
+cafea 2 35 165
+grau 3 50 215
+ROTATIE 5
+sticla cupru
+cupru cafea
+cafea N/A
+grau N/A
+sticla N/A
